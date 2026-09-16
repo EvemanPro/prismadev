@@ -10,7 +10,11 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M16 4 L28 27 H4 Z' fill='none' stroke='%232F0366' stroke-width='2.5' stroke-linejoin='round'/%3E%3Cpath d='M0 17 H12' stroke='%232F0366' stroke-width='2.5'/%3E%3Cpath d='M20 18 L32 22' stroke='%23AE66FF' stroke-width='2.5'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@600;700;800&family=Manrope:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<!-- Fonts don't block the first paint: the stylesheet is fetched early and
+     switched on when it arrives. Until then text uses the fallback stack. -->
+<link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@600;700;800&family=Manrope:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@600;700;800&family=Manrope:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" media="print" onload="this.media='all'">
+<noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@600;700;800&family=Manrope:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap"></noscript>
 <style>
 /* ============================================================
    prismadev — prototype: converge
@@ -726,8 +730,6 @@ html.locked, html.locked body{ overflow:hidden; height:100%; }
   font-size:clamp(1rem, 1.6vw, 1.25rem); line-height:1.25; letter-spacing:-.01em;
   color:var(--ink);
 }
-/* the status ray's dot is the live one */
-.abt-ray:last-child .abt-dot{ animation:live 2.2s var(--ease) infinite; }
 
 /* the drawn light */
 .abt-beam, .abt-line{
@@ -775,7 +777,7 @@ html.locked, html.locked body{ overflow:hidden; height:100%; }
 
 html:not(.js) .abt-glass, html:not(.js) .abt-ray{ opacity:1; transform:none; }
 @media (prefers-reduced-motion: reduce){
-  .abt-prism *, .abt-prism *::before{ transition:none !important; animation:none !important; }
+  .abt-prism *, .abt-prism *::before, .abt-prism *::after{ transition:none !important; animation:none !important; }
 }
 @media (max-width:420px){
   .abt-prism{ grid-template-columns:88px minmax(0,1fr); min-height:320px; }
@@ -832,13 +834,21 @@ html:not(.js) .abt-glass, html:not(.js) .abt-ray{ opacity:1; transform:none; }
   font:500 .82rem/1 var(--body); color:rgba(243,238,252,.9);
 }
 .cta-status-dot{
+  position:relative;
   width:8px; height:8px; border-radius:50%; background:var(--beam); flex:none;
+}
+/* the live pulse: a ring that grows and fades — transform and opacity only,
+   so it runs on the compositor instead of repainting every frame */
+.cta-status-dot::after,
+.abt-ray:last-child .abt-dot::after{
+  content:""; position:absolute; inset:0; border-radius:50%;
+  background:var(--beam); opacity:0;
   animation:live 2.2s var(--ease) infinite;
 }
 @keyframes live{
-  0%{   box-shadow:0 0 0 0 rgba(174,102,255,.55) }
-  70%{  box-shadow:0 0 0 9px rgba(174,102,255,0) }
-  100%{ box-shadow:0 0 0 0 rgba(174,102,255,0) }
+  0%{   transform:scale(1);   opacity:.55 }
+  70%{  transform:scale(3.2); opacity:0 }
+  100%{ transform:scale(3.2); opacity:0 }
 }
 
 /* The address: the biggest thing here. Every few seconds its letters
@@ -906,7 +916,7 @@ html:not(.js) .abt-glass, html:not(.js) .abt-ray{ opacity:1; transform:none; }
 
 @media (prefers-reduced-motion: reduce){
   .cta-mail span{ animation:none !important; }
-  .cta-status-dot{ animation:none; }
+  .cta-status-dot::after{ animation:none; }
 }
 
 /* ── footer ─────────────────────────────────────────────────── */
@@ -958,7 +968,7 @@ html:not(.js) .hero-badge, .calm .hero-badge{ opacity:1; transform:translate(-50
   <nav class="gnav-links" aria-label="Primary">
     <a href="#servizi">Servizi</a>
     <a href="#lavori">Lavori</a>
-    <a href="#chi-sono">Chi sono</a>
+    <a href="#chi-siamo">Chi siamo</a>
     <a href="#contatti">Contatti</a>
   </nav>
   <a class="gnav-cta" href="mailto:info@prismadev.net?subject=Nuovo%20progetto">Inizia un progetto</a>
@@ -1041,7 +1051,7 @@ html:not(.js) .hero-badge, .calm .hero-badge{ opacity:1; transform:translate(-50
             <h3 class="svc-title">Cosa c’è dietro</h3>
             <p>La parte che non si vede: dove finiscono i dati, come si entra con la
               password, come si incassano i pagamenti. E un pannello dove cambi testi e foto
-              da solo, senza chiamare me.</p>
+              in autonomia, senza dover chiedere a nessuno.</p>
           </div>
           <ul class="svc-tags"><li>Dati</li><li>Accessi</li><li>Pagamenti</li></ul>
         </li>
@@ -1050,7 +1060,7 @@ html:not(.js) .hero-badge, .calm .hero-badge{ opacity:1; transform:translate(-50
           <div>
             <h3 class="svc-title">Quanto va veloce</h3>
             <p>Misurata, non promessa. Google dà un voto di velocità a ogni sito: il tuo lo
-              passa, provato su telefoni veri e connessioni vere, non solo sul mio computer.</p>
+              passa, provato su telefoni veri e connessioni vere, non solo sui nostri computer.</p>
           </div>
           <ul class="svc-tags"><li>Voto Google</li><li>Test su telefono</li><li>Numeri alla mano</li></ul>
         </li>
@@ -1061,9 +1071,8 @@ html:not(.js) .hero-badge, .calm .hero-badge{ opacity:1; transform:translate(-50
     <section class="section" id="lavori">
       <header class="work-head reveal">
         <p class="eyebrow">Lavori</p>
-        <h2 class="h2">Tre tipi di lavoro che <em>faccio</em>.</h2>
-        <p class="lede">Quasi tutto quello che costruisco è uno di questi tre. Cambia il
-          problema da risolvere, non il modo in cui lavoro.</p>
+        <h2 class="h2">Tre tipi di lavoro che <em>facciamo</em>.</h2>
+        <p class="lede">Quasi tutto quello che costruiamo è uno di questi tre. Cambia il problema da risolvere, non il modo in cui lavoriamo.</p>
       </header>
 
       <div class="work-grid">
@@ -1101,7 +1110,7 @@ html:not(.js) .hero-badge, .calm .hero-badge{ opacity:1; transform:translate(-50
             <span class="work-chip lg-sm">Esempio in arrivo</span>
             <h3 class="work-title">Siti da rimettere in piedi</h3>
             <p>Un sito già fatto che si è bloccato a metà, o che è online e dà problemi.
-              Prima guardo cosa c'è, poi ti dico cosa si salva e cosa conviene rifare.</p>
+              Prima analizziamo cosa c'è, poi ti diciamo cosa si salva e cosa conviene rifare.</p>
             </div>
           </article>
           </div>
@@ -1116,51 +1125,49 @@ html:not(.js) .hero-badge, .calm .hero-badge{ opacity:1; transform:translate(-50
       <header class="proc-head reveal">
         <p class="eyebrow">Processo</p>
         <h2 class="h2">Dalla prima chiacchierata al sito <em>online</em>.</h2>
-        <p class="lede">Non c’è un commerciale in mezzo. Dal primo disegno all’ultimo
-          giorno parli sempre con me, cioè con chi il sito lo costruisce davvero.</p>
+        <p class="lede">Nessun commerciale in mezzo: dal primo disegno all’ultimo giorno il tuo riferimento è chi il sito lo costruisce davvero.</p>
       </header>
 
       <ol class="proc-list">
         <li class="proc-step reveal" style="--d:0ms">
           <span class="proc-n">01</span>
           <h3 class="proc-title">Ne parliamo</h3>
-          <p>Mi racconti cosa ti serve, per quando, e qual è il problema più grosso.</p>
+          <p>Ci racconti cosa ti serve, per quando, e qual è il problema più grosso.</p>
           <span class="proc-when">una chiamata</span>
         </li>
         <li class="proc-step reveal" style="--d:80ms">
           <span class="proc-n">02</span>
-          <h3 class="proc-title">Ti mando il preventivo</h3>
-          <p>Cosa faccio, quanto ci metto, quanto costa. Prezzo fisso. Se l’idea non sta in piedi te lo dico subito.</p>
+          <h3 class="proc-title">Ti mandiamo il preventivo</h3>
+          <p>Cosa facciamo, quanto ci mettiamo, quanto costa. Prezzo fisso. Se l’idea non sta in piedi, te lo diciamo subito.</p>
           <span class="proc-when">due giorni</span>
         </li>
         <li class="proc-step reveal" style="--d:160ms">
           <span class="proc-n">03</span>
-          <h3 class="proc-title">Lo costruisco</h3>
-          <p>Te lo faccio vedere mentre prende forma, così non ci sono sorprese alla fine.</p>
+          <h3 class="proc-title">Lo costruiamo</h3>
+          <p>Te lo mostriamo mentre prende forma, così non ci sono sorprese alla fine.</p>
           <span class="proc-when">1–2 settimane</span>
         </li>
         <li class="proc-step reveal" style="--d:240ms">
           <span class="proc-n">04</span>
           <h3 class="proc-title">Va online</h3>
-          <p>Il sito va online, e ti lascio le istruzioni per gestirlo anche senza di me.</p>
+          <p>Il sito va online, e ti lasciamo le istruzioni per gestirlo in autonomia.</p>
           <span class="proc-when">subito dopo</span>
         </li>
       </ol>
     </section>
 
     <!-- ══ chi sono ════════════════════════════════════════════════ -->
-    <section class="section" id="chi-sono">
+    <section class="section" id="chi-siamo">
       <header class="abt-head reveal">
-        <p class="eyebrow">Chi sono</p>
-        <h2 class="h2">Una persona sola, <em>dall’inizio alla fine.</em></h2>
+        <p class="eyebrow">Chi siamo</p>
+        <h2 class="h2">Un solo referente, <em>dall’inizio alla fine.</em></h2>
       </header>
 
       <div class="abt-grid">
         <div class="abt-text reveal" style="--d:80ms">
-          <p class="lede">prismadev sono io. Chi disegna il tuo sito è anche chi lo
+          <p class="lede">prismadev è uno studio indipendente. Chi disegna il tuo sito è anche chi lo
             costruisce: niente passaggi di mano, niente dettagli persi per strada.</p>
-          <p class="lede">Lavoro con aziende piccole, a progetto o in modo continuativo.
-            I lavori che preferisco hanno un problema vero da risolvere: una scadenza,
+          <p class="lede">Lavoriamo con piccole aziende, a progetto o in modo continuativo. I progetti che preferiamo hanno un problema vero da risolvere: una scadenza,
             un vecchio sistema, un sito da rendere veloce.</p>
         </div>
 
@@ -1198,17 +1205,16 @@ html:not(.js) .hero-badge, .calm .hero-badge{ opacity:1; transform:translate(-50
     <section class="section" id="contatti">
       <header class="cta-head reveal">
         <p class="eyebrow">Contatti</p>
-        <h2 class="h2">Raccontami il progetto.<br><em>Ti rispondo con un piano.</em></h2>
+        <h2 class="h2">Raccontaci il progetto.<br><em>Ti rispondiamo con un piano.</em></h2>
         <p class="lede">Bastano tre cose: cosa vuoi costruire, per quando ti serve, e cosa
-          ti sta bloccando adesso. Ti rispondo di solito in due giorni con cosa faccio,
-          quanto ci metto e quanto costa — a prezzo fisso.</p>
+          ti sta bloccando adesso. Di solito rispondiamo in due giorni, con cosa facciamo, quanto ci mettiamo e quanto costa — a prezzo fisso.</p>
       </header>
 
       <div class="cta-panel reveal" style="--d:120ms">
         <p class="cta-status"><span class="cta-status-dot" aria-hidden="true"></span>Disponibile ora</p>
         <div><a class="cta-mail" href="mailto:info@prismadev.net?subject=Nuovo%20progetto">info@prismadev.net</a></div>
         <div class="cta-actions">
-          <a class="cta-send" href="mailto:info@prismadev.net?subject=Nuovo%20progetto">Scrivimi una email <span aria-hidden="true">→</span></a>
+          <a class="cta-send" href="mailto:info@prismadev.net?subject=Nuovo%20progetto">Scrivici una email <span aria-hidden="true">→</span></a>
           <button class="cta-copy" id="copyMail" type="button">Copia indirizzo</button>
         </div>
       </div>
@@ -1343,14 +1349,15 @@ html:not(.js) .hero-badge, .calm .hero-badge{ opacity:1; transform:translate(-50
 
   /* Unbounded changes the metrics, so re-seat once it has actually
      loaded — but only while nothing has started moving. */
-  if (document.fonts && document.fonts.ready) {
-    document.fonts.ready.then(function () {
-      if (state === 'idle') { measure(); seat(true); }
-    });
+  if (document.fonts) {
+    var remeasure = function () { if (state === 'idle') { measure(); seat(true); } };
+    if (document.fonts.ready) document.fonts.ready.then(remeasure);
+    if (document.fonts.addEventListener) document.fonts.addEventListener('loadingdone', remeasure);
   }
 
   function play(){
     if (state !== 'idle') return;
+    measure(); seat(true);            /* whatever font is showing right now */
     state = 'rest';
 
     starter.classList.add('gone');
@@ -1554,7 +1561,7 @@ html:not(.js) .hero-badge, .calm .hero-badge{ opacity:1; transform:translate(-50
     measure(); shown = target; draw();
   }
 
-  /* Chi sono: the rays run from the prism's exit face to each fact's dot.
+  /* Chi siamo: the rays run from the prism's exit face to each fact's dot.
      Measured with offsets rather than bounding boxes, because the prism
      and the facts are still mid-entrance (scaled, shifted) when this first
      runs, and the lines have to meet where they will end up. */
@@ -1619,6 +1626,7 @@ html:not(.js) .hero-badge, .calm .hero-badge{ opacity:1; transform:translate(-50
 
     drawRays();
     if (document.fonts && document.fonts.ready) document.fonts.ready.then(drawRays);
+    if (document.fonts && document.fonts.addEventListener) document.fonts.addEventListener('loadingdone', drawRays);
     if ('ResizeObserver' in window) new ResizeObserver(drawRays).observe(prismBox);
     else window.addEventListener('resize', drawRays);
   }
