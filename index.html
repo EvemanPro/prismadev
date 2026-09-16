@@ -1,0 +1,1664 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>prismadev — Il digitale, fatto bene</title>
+<meta name="description" content="Siti web disegnati e costruiti da una persona sola, da remoto in tutta Europa. Pronti in 1–2 settimane, a prezzo fisso. Disponibile ora.">
+<meta name="theme-color" content="#0D0812">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M16 4 L28 27 H4 Z' fill='none' stroke='%232F0366' stroke-width='2.5' stroke-linejoin='round'/%3E%3Cpath d='M0 17 H12' stroke='%232F0366' stroke-width='2.5'/%3E%3Cpath d='M20 18 L32 22' stroke='%23AE66FF' stroke-width='2.5'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@600;700;800&family=Manrope:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   prismadev — prototype: converge
+
+   A dark canvas that waits. Press it and a ~3.3s intro plays
+   itself: "prisma" and "dev" travel in from the sides, rest a
+   beat at the edges, pull back, then slam together at the top —
+   the flash carries the screen to white, the sub-hero lifts in
+   under the wordmark, and the glass bar drops in last.
+
+   Every moving part is transform or opacity only: nothing in the
+   sequence touches layout, so the whole intro stays on the
+   compositor. Nothing here is scroll-driven — the page is
+   scroll-locked until the intro finishes, then it's an ordinary
+   page.
+   ============================================================ */
+
+:root{
+  --ink:   #2F0366;
+  --beam:  #AE66FF;
+  --b2:    #8445CC;
+  --b3:    #592499;
+  --white: #FFFFFF;
+  --mute:  #6E5A8A;
+  --hair:  rgba(47,3,102,.14);
+  --hair-soft: rgba(47,3,102,.07);
+
+  --dark:      #0D0812;   /* the canvas — near-black, warmed toward ink */
+  --dark-soft: #17101F;
+  --on-dark:   #F3EEFC;   /* wordmark colour while still on the dark */
+
+  --display: "Unbounded", ui-sans-serif, system-ui, sans-serif;
+  --body:    "Manrope", ui-sans-serif, system-ui, sans-serif;
+  --mono:    "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+
+  --gut: clamp(1.25rem, 4vw, 4.5rem);
+  --max: 1180px;
+
+  --ease: cubic-bezier(.22,.68,0,1);
+
+  /* The two halves of the gesture. The travel in is a long glide that
+     settles; the close is an acceleration that is still speeding up when
+     it hits. Getting the pop clean is mostly this: arrive fast. */
+  --ease-glide: cubic-bezier(.16,.84,.30,1);
+  --ease-hit:   cubic-bezier(.55,.055,.675,.19);
+
+  /* the vertical travel, as a share of the hero: centre → 38% */
+  --rise: 12vh;
+}
+@supports (height: 1svh){ :root{ --rise: 12svh; } }
+
+*,*::before,*::after{ box-sizing:border-box; }
+html{ overflow-x:clip; -webkit-text-size-adjust:100%; }
+
+body{
+  margin:0;
+  background:var(--white);
+  color:var(--ink);
+  font-family:var(--body);
+  font-size:clamp(1rem,.96rem + .2vw,1.0625rem);
+  line-height:1.65;
+  -webkit-font-smoothing:antialiased;
+}
+a{ color:inherit; text-decoration:none; }
+:focus-visible{ outline:2px solid var(--beam); outline-offset:3px; border-radius:2px; }
+
+/* the page holds still until the intro has played */
+html.locked, html.locked body{ overflow:hidden; height:100%; }
+
+.skip{
+  position:absolute; left:-9999px; top:0; z-index:200;
+  background:var(--ink); color:#fff; padding:.75rem 1.25rem;
+  font:500 .875rem/1 var(--mono);
+}
+.skip:focus{ left:.5rem; top:.5rem; }
+.sr-only{
+  position:absolute; width:1px; height:1px; overflow:hidden;
+  clip:rect(0 0 0 0); white-space:nowrap; border:0; padding:0; margin:-1px;
+}
+
+.page{ position:relative; z-index:1; }
+
+/* ── lo sfondo ───────────────────────────────────────────────── */
+/* Part of the page, not the window. The blooms are laid out down the
+   whole length of the document and scroll away with everything else,
+   so moving through the site moves through them. It lives inside
+   .page, not body: during the intro body is locked to the viewport's
+   height, and blooms positioned against that would jump when it lets go.
+
+   Each bloom falls off with closest-side, so there is no edge left to
+   read as a ring, and a layer of grain goes over the lot — it breaks
+   up the banding smooth gradients leave on most screens, and behind
+   the glass it gets blurred smooth, which is half of what makes the
+   glass read as glass. */
+.mesh{
+  position:absolute; inset:0; z-index:-1;
+  pointer-events:none; overflow:hidden;
+}
+.mesh .b{
+  position:absolute; display:block; border-radius:50%;
+  width:var(--s); height:var(--s); left:var(--x); top:var(--y);
+  margin:calc(var(--s) / -2) 0 0 calc(var(--s) / -2);
+  background:radial-gradient(closest-side,
+    rgb(var(--rgb) / var(--a)),
+    rgb(var(--rgb) / calc(var(--a) * .42)) 50%,
+    rgb(var(--rgb) / 0) 100%);
+  will-change:transform;
+  animation:drift var(--t) ease-in-out infinite alternate;
+}
+@keyframes drift{
+  from{ transform:translate3d(0,0,0) }
+  to{   transform:translate3d(var(--dx),var(--dy),0) }
+}
+.grain{
+  position:absolute; inset:0; z-index:1; pointer-events:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='g' x='0' y='0'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.16  0 0 0 0 0.04  0 0 0 0 0.3  1.15 0 0 0 -0.44'/%3E%3C/filter%3E%3Crect width='240' height='240' filter='url%28%23g%29'/%3E%3C/svg%3E");
+  background-size:240px 240px;
+  opacity:.22;
+}
+@media (prefers-reduced-motion: reduce){
+  .mesh .b{ animation:none; }
+}
+
+/* ── liquid glass ───────────────────────────────────────────── */
+/* Not a milky pane with a blur behind it. Real glass is nearly clear
+   through the middle and does all its work at the rim: that is where it
+   thickens, catches the light, and bends colour out of what is behind
+   it. So the centre stays transparent, and the edge carries a lensed
+   bevel, a bright specular, and a chromatic fringe — which for a studio
+   named after a prism is the whole point. */
+.lg{
+  position:relative; isolation:isolate;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.20), rgba(255,255,255,.07));
+  -webkit-backdrop-filter:blur(13px) saturate(190%) brightness(1.07);
+  backdrop-filter:blur(13px) saturate(190%) brightness(1.07);
+  border:none;
+  box-shadow:
+    inset 0 1.4px 0 rgba(255,255,255,.92),          /* the lit top facet   */
+    inset 0 -1.2px 0 rgba(255,255,255,.42),         /* the catch underneath */
+    inset 0 14px 26px -16px rgba(255,255,255,.85),  /* lens bloom under the rim */
+    inset 0 -16px 30px -18px rgba(47,3,102,.26),    /* the pane's thickness */
+    0 22px 52px -28px rgba(47,3,102,.42),
+    0 3px 10px -6px rgba(47,3,102,.20);
+}
+
+/* The rim itself: a gradient ring masked to a hairline. This is the
+   dispersion — white where the light hits square, violet and purple
+   where it leaves at an angle. */
+.lg::before{
+  content:""; position:absolute; inset:0; z-index:2;
+  border-radius:inherit; pointer-events:none; padding:1.3px;
+  background:linear-gradient(135deg,
+    rgba(255,255,255,.98) 0%,
+    rgba(174,102,255,.72) 22%,
+    rgba(255,255,255,.18) 44%,
+    rgba(132,69,204,.62) 68%,
+    rgba(255,255,255,.95) 100%);
+  -webkit-mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+          mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite:xor; mask-composite:exclude;
+}
+
+/* The travelling specular — a tight streak that rides the surface under
+   the pointer, not a soft cloud in the middle. */
+.lg::after{
+  content:""; position:absolute; inset:0; z-index:1;
+  border-radius:inherit; pointer-events:none;
+  background:
+    radial-gradient(9rem 6rem at var(--mx,50%) var(--my,-30%),
+      rgba(255,255,255,.75), rgba(255,255,255,0) 58%),
+    radial-gradient(22rem 14rem at var(--mx,50%) var(--my,-30%),
+      rgba(174,102,255,.24), rgba(174,102,255,0) 62%);
+  opacity:0; transition:opacity .4s var(--ease);
+}
+.lg:hover::after{ opacity:1; }
+.lg > *{ position:relative; z-index:3; }
+
+/* the small pieces: same rim logic, no backdrop pass */
+.lg-sm{
+  position:relative;
+  background:linear-gradient(180deg, rgba(255,255,255,.42), rgba(255,255,255,.14));
+  border:none;
+  box-shadow:
+    inset 0 1.2px 0 rgba(255,255,255,.95),
+    inset 0 -1px 0 rgba(255,255,255,.4),
+    inset 0 -6px 12px -8px rgba(47,3,102,.18),
+    0 5px 14px -9px rgba(47,3,102,.35);
+}
+.lg-sm::before{
+  content:""; position:absolute; inset:0;
+  border-radius:inherit; pointer-events:none; padding:1px;
+  background:linear-gradient(135deg,
+    rgba(255,255,255,.95), rgba(174,102,255,.5) 45%, rgba(255,255,255,.85));
+  -webkit-mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+          mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite:xor; mask-composite:exclude;
+}
+
+/* ── the hero, and the intro that happens inside it ─────────── */
+.hero{
+  position:relative; overflow:hidden;
+  min-height:100vh; min-height:100svh;
+  background:transparent;   /* the mesh shows through once the canvas lifts */
+}
+.hero-title{ margin:0; font-size:inherit; font-weight:inherit; }
+
+/* the dark canvas. It doesn't get swapped for white — it fades,
+   and the white page underneath it was always there. */
+.hero-bg{
+  position:absolute; inset:0; z-index:0;
+  background:
+    radial-gradient(46% 38% at 32% 30%, rgba(174,102,255,.20), transparent 70%),
+    radial-gradient(40% 34% at 70% 64%, rgba(89,36,153,.24), transparent 72%),
+    radial-gradient(58% 48% at 50% 42%, var(--dark-soft), transparent 70%),
+    var(--dark);
+  transition:opacity 420ms cubic-bezier(.3,.9,.4,1);
+}
+.hero.is-day .hero-bg{ opacity:0; }
+.hero-bg::after{
+  content:""; position:absolute; inset:0; pointer-events:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='g' x='0' y='0'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  1.15 0 0 0 -0.44'/%3E%3C/filter%3E%3Crect width='240' height='240' filter='url%28%23g%29'/%3E%3C/svg%3E");
+  background-size:240px 240px;
+  opacity:.12;
+}
+
+/* The burst at the moment of contact, centred where they meet. It sits
+   under the type, so the wordmark punches through the white rather than
+   being washed out by it. */
+.hero-flash{
+  position:absolute; inset:0; z-index:1; pointer-events:none; opacity:0;
+  background:radial-gradient(36% 30% at 50% 38%, #fff, rgba(255,255,255,0) 68%);
+}
+.hero-flash.fire{ animation:flash 460ms cubic-bezier(.2,.7,.3,1); }
+@keyframes flash{
+  0%{ opacity:0 } 7%{ opacity:1 } 100%{ opacity:0 }
+}
+
+/* ── press to begin ─────────────────────────────────────────── */
+.starter{
+  position:absolute; inset:0; z-index:4;
+  display:flex; align-items:center; justify-content:center;
+  border:0; background:transparent; cursor:pointer;
+  color:rgba(243,238,252,.72);
+  font:500 .78rem/1 var(--mono); letter-spacing:.2em; text-transform:uppercase;
+  -webkit-tap-highlight-color:transparent;
+  transition:opacity 240ms var(--ease);
+}
+.starter.gone{ opacity:0; pointer-events:none; }
+/* display:flex above beats the UA rule for [hidden]; without this the
+   faded-out button would stay in the tab order after the intro */
+.starter[hidden]{ display:none; }
+
+/* ── the wordmark ───────────────────────────────────────────── */
+/* The rise is part of this transform, not a `top` animation — moving it
+   off the layout path is what keeps the close and the rise in step. */
+.word-row{
+  position:absolute; left:50%; top:50%; z-index:3;
+  transform:translate(-50%,-50%);
+  display:flex; align-items:baseline; white-space:nowrap;
+  font-family:var(--display); font-weight:800;
+  font-size:clamp(1.95rem, 9.4vw, 7rem);
+  letter-spacing:-.01em;
+  color:var(--on-dark);
+  will-change:transform;
+  transition:transform 620ms var(--ease), color 300ms linear;
+}
+.hero.is-risen .word-row{ transform:translate(-50%, calc(-50% - var(--rise))); }
+.hero.is-day .word-row{ color:var(--ink); }
+
+/* The pop is a collision, so it reads as one: compressed across the axis
+   they met on, bulged along the other, then a rebound that overshoots
+   once and settles. The first beat is ~90ms — fast enough to be an
+   impact rather than a zoom. */
+.word-pop{ display:flex; align-items:baseline; will-change:transform; }
+.word-pop.pop{ animation:pop 520ms cubic-bezier(.25,.8,.35,1); }
+@keyframes pop{
+  0%{   transform:scale(1,1) }
+  18%{  transform:scale(.945,1.085) }
+  42%{  transform:scale(1.032,.976) }
+  68%{  transform:scale(.992,1.008) }
+  100%{ transform:scale(1,1) }
+}
+
+/* First paint parks both words far off-canvas so neither can flash in
+   the middle of the screen. From there the offsets are pixels, measured
+   off the real type once the webfont has landed — see the script. */
+.word{
+  display:inline-block; will-change:transform;
+  transition-property:transform; transition-duration:0ms;
+}
+.word-left{ transform:translateX(-150vw); }
+.word-right{ color:var(--beam); transform:translateX(150vw); }
+
+/* ── sub-hero, under the wordmark ───────────────────────────── */
+.subhero{
+  position:absolute; left:50%; top:57%; z-index:3;
+  transform:translate(-50%,26px);
+  margin:0; width:min(90vw,28ch); text-align:center;
+  font-family:var(--display); font-weight:600;
+  font-size:clamp(1.15rem, 3.2vw, 2.1rem);
+  color:var(--ink); opacity:0;
+  transition:opacity 760ms var(--ease), transform 760ms var(--ease);
+}
+.subhero.in{ opacity:1; transform:translate(-50%,0); }
+.subhero em{ font-style:normal; color:var(--beam); }
+
+.hero-badge{
+  position:absolute; left:50%; top:70%; z-index:3;
+  transform:translate(-50%,14px);
+  display:flex; align-items:center; gap:.6rem; margin:0;
+  padding:.6rem 1.05rem; border-radius:999px;
+  font:500 .8rem/1 var(--body); color:var(--ink); white-space:nowrap;
+  opacity:0; transition:opacity .7s var(--ease), transform .7s var(--ease);
+}
+.hero-badge.in{ opacity:1; transform:translate(-50%,0); }
+.hero-badge strong{ font-weight:600; }
+.hero-badge-dot{
+  width:7px; height:7px; border-radius:50%; background:var(--beam);
+  box-shadow:0 0 0 3px rgba(174,102,255,.18);
+}
+
+.hero-more{
+  position:absolute; left:50%; bottom:5vh; z-index:3;
+  transform:translateX(-50%);
+  color:var(--mute); opacity:0;
+  transition:opacity 600ms var(--ease);
+}
+.hero-more.in{ opacity:.6; }
+.hero-more svg{ display:block; width:16px; height:22px; animation:bob 2.2s var(--ease) infinite; }
+@keyframes bob{ 0%,100%{ transform:translateY(0) } 50%{ transform:translateY(6px) } }
+
+/* resize re-seats the wordmark without animating it there */
+.hero.no-anim .word-row,
+.hero.no-anim .word,
+.hero.no-anim .subhero,
+.hero.no-anim .hero-bg{ transition:none !important; }
+
+/* ── barra di avanzamento ───────────────────────────────────── */
+/* Quanto manca alla fine della pagina. È la dispersione del prisma
+   stesa in linea retta: viola dove entra, inchiostro dove esce. */
+.progress{
+  position:fixed; top:0; left:0; right:0; height:3px; z-index:60;
+  pointer-events:none; opacity:0;
+  transition:opacity .6s var(--ease);
+  background:rgba(47,3,102,.07);
+}
+.progress.visible{ opacity:1; }
+.progress i{
+  display:block; height:100%; width:100%;
+  transform:scaleX(0); transform-origin:0 50%;
+  background:linear-gradient(90deg,
+    var(--beam) 0%, var(--b2) 38%, var(--b3) 70%, var(--ink) 100%);
+  box-shadow:0 0 14px rgba(174,102,255,.6);
+}
+/* ── top bar: liquid glass ──────────────────────────────────── */
+.glass-nav{
+  position:fixed; top:0; left:50%; z-index:50;
+  width:min(940px, 94vw); margin-top:14px;
+  display:flex; align-items:center; justify-content:space-between;
+  gap:1rem; padding:.6rem .6rem .6rem 1.1rem;
+  border-radius:999px;
+  opacity:0; transform:translate(-50%,-14px); pointer-events:none;
+  transition:opacity .7s var(--ease), transform .7s var(--ease);
+}
+.glass-nav.visible{ opacity:1; transform:translate(-50%,0); pointer-events:auto; }
+.gnav-mark{ display:flex; align-items:baseline; gap:.05em; }
+.gnav-mark b,
+.gnav-mark span{ font-family:var(--display); font-weight:800; font-size:1rem; }
+.gnav-mark b{ color:var(--ink); }
+.gnav-mark span{ color:var(--beam); }
+.gnav-links{
+  display:flex; align-items:center; gap:1.4rem;
+  font:500 .84rem/1 var(--body); color:var(--mute);
+}
+.gnav-links a{ transition:color .2s var(--ease); }
+.gnav-links a{ position:relative; padding-block:.35rem; }
+.gnav-links a:hover{ color:var(--ink); }
+.gnav-links a.active{ color:var(--ink); }
+.gnav-links a.active::after{
+  content:""; position:absolute; left:0; right:0; bottom:0; height:2px;
+  border-radius:2px; background:var(--beam);
+}
+.gnav-cta{
+  font:600 .82rem/1 var(--body); color:#fff; background:var(--ink);
+  padding:.62rem 1.05rem; border-radius:999px;
+  box-shadow:0 1px 0 rgba(47,3,102,.2);
+  transition:background .2s var(--ease), transform .2s var(--ease);
+}
+.gnav-cta:hover{ background:var(--beam); transform:translateY(-1px); }
+@media (max-width:640px){ .gnav-links{ display:none; } }
+
+
+/* ── page furniture, shared by every section below ──────────── */
+.section{ max-width:var(--max); margin:0 auto; padding:clamp(5rem,11vh,9rem) var(--gut); }
+.section + .section{ position:relative; }
+.section + .section::before{
+  content:""; position:absolute; top:0; left:var(--gut); right:var(--gut); height:1px;
+  background:linear-gradient(90deg, transparent, var(--hair), transparent);
+}
+[id]{ scroll-margin-top:6.5rem; }
+
+.eyebrow{
+  display:flex; align-items:center; gap:.6rem; margin:0 0 1.1rem;
+  font:500 .76rem/1 var(--mono); letter-spacing:.18em; text-transform:uppercase;
+  color:var(--mute);
+}
+.eyebrow::before{
+  content:""; width:22px; height:2px; border-radius:2px; background:var(--beam);
+}
+.h2{
+  margin:0; max-width:20ch;
+  font-family:var(--display); font-weight:700;
+  font-size:clamp(1.75rem,4.6vw,3.15rem); line-height:1.08;
+  letter-spacing:-.02em; color:var(--ink);
+  text-wrap:balance;
+}
+.h2 em{
+  font-style:normal; color:var(--beam);
+  background:linear-gradient(100deg, var(--beam), var(--b2) 62%, var(--b3));
+  -webkit-background-clip:text; background-clip:text;
+  -webkit-text-fill-color:transparent;
+}
+@supports not ((-webkit-background-clip:text) or (background-clip:text)){
+  .h2 em{ -webkit-text-fill-color:var(--beam); }
+}
+.lede{
+  margin:1.3rem 0 0; max-width:56ch;
+  font-size:clamp(1.02rem,1.4vw,1.16rem); color:var(--mute);
+}
+
+/* ── servizi: ordered by how far each one bends ─────────────── */
+/* The angle is the structure, not an ornament — the list runs from the
+   discipline that deviates least from the brief to the one that travels
+   furthest, and the ink darkens the same way the palette does. */
+.svc-head{ margin-bottom:clamp(2.6rem,6vh,4rem); }
+.svc-list{ list-style:none; margin:0; padding:0; }
+.svc-row{
+  --c:var(--beam);
+  position:relative;
+  transition:background .4s var(--ease);
+  display:grid; gap:.5rem 2rem;
+  grid-template-columns:6.5rem minmax(0,1fr) 15.5rem;
+  align-items:start;
+  padding:clamp(1.6rem,3.4vh,2.3rem) 0;
+  border-top:1px solid var(--hair-soft);
+}
+.svc-row:last-child{ border-bottom:1px solid var(--hair-soft); }
+/* il raggio che attraversa la riga, nel colore di quella riga */
+.svc-row::after{
+  content:""; position:absolute; left:0; right:0; bottom:-1px; height:2px;
+  background:linear-gradient(90deg, var(--c), rgba(174,102,255,0) 70%);
+  transform:scaleX(0); transform-origin:0 50%;
+  transition:transform .6s var(--ease);
+}
+.svc-row:hover::after{ transform:scaleX(1); }
+.svc-row:hover{ background:linear-gradient(90deg, rgba(174,102,255,.06), transparent 62%); }
+.svc-deg{ transition:transform .4s var(--ease); }
+.svc-row:hover .svc-deg{ transform:translateX(5px); }
+.svc-deg{
+  font:500 1.45rem/1 var(--mono); letter-spacing:-.02em; color:var(--c);
+  font-variant-numeric:tabular-nums;
+  text-shadow:0 0 18px rgba(174,102,255,.35);
+  text-shadow:0 0 18px rgb(from var(--c) r g b / .35);
+}
+.svc-title{
+  margin:0 0 .45rem; font-family:var(--display); font-weight:600;
+  font-size:clamp(1.12rem,2vw,1.45rem); letter-spacing:-.01em; color:var(--ink);
+}
+.svc-row p{ margin:0; color:var(--mute); max-width:52ch; }
+/* What each service gets you, as a short checklist. Stacked and
+   left-aligned so every row has the same shape, in the body face so it
+   reads as a sentence and not a label, and set off from the description
+   by a hairline. The check takes the row's own colour. */
+.svc-tags{
+  list-style:none; margin:0; padding:.3rem 0 .2rem 1.6rem;
+  border-left:1px solid var(--hair);
+  display:flex; flex-direction:column; gap:.75rem;
+}
+.svc-tags li{
+  position:relative; padding-left:1.8rem;
+  font:500 .96rem/1.35 var(--body); color:var(--ink);
+}
+.svc-tags li::before{
+  content:""; position:absolute; left:0; top:.05em;
+  width:1.2rem; height:1.2rem; border-radius:50%;
+  background:rgba(174,102,255,.14);
+  background:rgb(from var(--c) r g b / .15);
+  box-shadow:inset 0 0 0 1px rgb(from var(--c) r g b / .22);
+}
+.svc-tags li::after{
+  content:""; position:absolute; left:.45rem; top:.29em;
+  width:.3rem; height:.56rem;
+  border:solid var(--c); border-width:0 2px 2px 0;
+  transform:rotate(45deg);
+}
+@media (max-width:860px){
+  .svc-row{ grid-template-columns:4.5rem minmax(0,1fr); }
+  .svc-deg{ font-size:1.15rem; }
+  /* under the description, still stacked so every row keeps one shape */
+  .svc-tags{ grid-column:2; margin-top:1.1rem; padding:0; border-left:0; gap:.6rem; }
+}
+/* on a phone the angle sits above the title, so the text gets the width */
+@media (max-width:560px){
+  .svc-row{ grid-template-columns:minmax(0,1fr); gap:.4rem; }
+  .svc-deg{ font-size:1rem; }
+  .svc-tags{ grid-column:1; }
+}
+
+/* ── lavori ─────────────────────────────────────────────────── */
+.work-head{ margin-bottom:clamp(2.6rem,6vh,4rem); }
+/* A hand of cards. Three layers, because three things each want the
+   transform and would overwrite one another on a single element:
+     .work-slot  — the scroll-in reveal, and the stacking order
+     .work-fan   — the resting angle, pivoting from the bottom edge the way
+                   cards turn in a hand; picked up on hover
+     .work-card  — the pointer tilt
+   The neighbours of a picked-up card lean away to make room. */
+.work-grid{
+  display:flex; justify-content:center; align-items:stretch;
+  padding:clamp(1.5rem,4vh,2.5rem) 0 clamp(2.5rem,6vh,4rem);
+}
+.work-slot{
+  position:relative; z-index:1;
+  flex:0 1 360px; margin:0 -.55rem;
+  perspective:1100px; perspective-origin:50% 40%;
+}
+.work-slot:nth-child(2){ z-index:2; }
+.work-slot:hover{ z-index:5; }
+.work-fan{
+  --fx:0px; --fy:0px; --fr:0deg; --fry:0deg; --fs:1; --sx:0px;
+  height:100%; perspective:900px; transform-origin:50% 100%;
+  transform:translate(calc(var(--fx) + var(--sx)), var(--fy))
+            rotate(var(--fr)) rotateY(var(--fry)) scale(var(--fs));
+  transition:transform .7s var(--ease);
+}
+.work-card{ height:100%; }
+.work-slot:nth-child(1) .work-fan{ --fx:-14px; --fy:30px; --fr:-7deg; --fry:10deg; }
+.work-slot:nth-child(3) .work-fan{ --fx:14px;  --fy:30px; --fr:7deg;  --fry:-10deg; }
+/* picked up: straight, lifted, to the front */
+.work-slot:hover .work-fan{ --fx:0px; --fy:-16px; --fr:0deg; --fry:0deg; --fs:1.03; }
+.work-grid:has(.work-slot:nth-child(1):hover) .work-slot:nth-child(2) .work-fan{ --sx:30px; }
+.work-grid:has(.work-slot:nth-child(1):hover) .work-slot:nth-child(3) .work-fan{ --sx:18px; }
+.work-grid:has(.work-slot:nth-child(2):hover) .work-slot:nth-child(1) .work-fan{ --sx:-28px; }
+.work-grid:has(.work-slot:nth-child(2):hover) .work-slot:nth-child(3) .work-fan{ --sx:28px; }
+.work-grid:has(.work-slot:nth-child(3):hover) .work-slot:nth-child(1) .work-fan{ --sx:-18px; }
+.work-grid:has(.work-slot:nth-child(3):hover) .work-slot:nth-child(2) .work-fan{ --sx:-30px; }
+/* nothing to pick them up with on touch screens, so the fan stays gentle
+   enough to read without straightening */
+@media (hover:none){
+  .work-slot:nth-child(1) .work-fan{ --fx:-6px;  --fy:14px; --fr:-3deg; --fry:4deg; }
+  .work-slot:nth-child(3) .work-fan{ --fx:6px;   --fy:14px; --fr:3deg;  --fry:-4deg; }
+}
+@media (prefers-reduced-motion: reduce){ .work-fan{ transition:none; } }
+.work-card{
+  --c:var(--beam);
+  display:flex; flex-direction:column;
+  border-radius:20px;
+  transform-style:preserve-3d;
+  transform:rotateX(var(--rx,0deg)) rotateY(var(--ry,0deg));
+  transition:transform .55s var(--ease), box-shadow .45s var(--ease);
+}
+/* while a pointer is actually driving it, the tilt has to keep up */
+.work-card.tilting{ transition:transform .09s linear, box-shadow .45s var(--ease); }
+.work-card:hover .work-field::after{ opacity:.95; }
+.work-card:hover{
+  box-shadow:
+    inset 0 1.4px 0 rgba(255,255,255,.98),
+    inset 0 -1.2px 0 rgba(255,255,255,.48),
+    inset 0 14px 26px -16px rgba(255,255,255,.9),
+    inset 0 -16px 30px -18px rgba(47,3,102,.24),
+    0 40px 70px -30px rgba(47,3,102,.48),
+    0 6px 16px -8px rgba(47,3,102,.22);
+}
+
+/* the layers that give the tilt something to reveal */
+.work-field{ transform:translateZ(16px); }
+.work-body{ transform:translateZ(34px); }
+.work-card .work-chip{ transform:translateZ(16px); }
+.work-field{
+  height:clamp(6.5rem,11vw,8.5rem); position:relative;
+  border-radius:20px 20px 0 0;
+  background:
+    radial-gradient(120% 90% at 18% 12%, rgba(174,102,255,.20), transparent 70%),
+    linear-gradient(160deg, rgba(255,255,255,.34), rgba(255,255,255,.08));
+  background:
+    radial-gradient(120% 90% at 18% 12%, rgb(from var(--c) r g b / .20), transparent 70%),
+    linear-gradient(160deg, rgba(255,255,255,.34), rgba(255,255,255,.08));
+  border-bottom:1px solid rgba(255,255,255,.55);
+  overflow:hidden;
+}
+/* the beam, bending by this card's own angle */
+.work-field::after{
+  content:""; position:absolute; left:12%; right:12%; top:58%; height:2px;
+  border-radius:2px; background:linear-gradient(90deg, transparent, var(--c), transparent);
+  transform:rotate(var(--a,-6deg)); opacity:.55;
+  transition:opacity .4s var(--ease);
+}
+.work-body{ padding:1.35rem 1.4rem 1.5rem; display:flex; flex-direction:column; gap:.55rem; flex:1; }
+.work-chip{
+  align-self:flex-start;
+  font:500 .68rem/1 var(--mono); letter-spacing:.12em; text-transform:uppercase;
+  color:var(--mute); border-radius:999px; padding:.38rem .66rem;
+}
+.work-title{
+  margin:0; font-family:var(--display); font-weight:600; font-size:1.05rem;
+  letter-spacing:-.01em; color:var(--ink);
+}
+.work-card p{ margin:0; font-size:.94rem; color:var(--mute); }
+.work-note{
+  margin:1.6rem 0 0; font:500 .8rem/1.6 var(--mono); color:var(--mute);
+}
+/* too narrow to fan (it needs ~1170px): straight cards, three across, then one */
+@media (max-width:1279px){
+  .work-grid{ display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:1.15rem; padding:0; }
+  .work-slot{ margin:0; }
+  .work-fan{ transform:none !important; }
+}
+@media (max-width:900px){ .work-grid{ grid-template-columns:1fr; } }
+
+/* ── processo: a real sequence, so it is numbered ───────────── */
+.proc-head{ margin-bottom:clamp(2.6rem,6vh,4rem); }
+.proc-list{
+  list-style:none; margin:0; padding:0;
+  display:grid; gap:1.15rem; grid-template-columns:repeat(4,1fr);
+}
+.proc-step{
+  position:relative; padding-top:1.6rem;
+  border-top:2px solid var(--hair);
+}
+.proc-step::before{
+  content:""; position:absolute; top:-2px; left:0; width:2.2rem; height:2px;
+  background:linear-gradient(90deg, var(--beam), var(--b2));
+  transition:width .9s var(--ease) var(--d,0ms);
+}
+/* quando lo step entra in vista il raggio percorre la sua barra */
+.proc-step.in::before{ width:100%; }
+.proc-n{
+  display:block; margin-bottom:.7rem;
+  font:500 .76rem/1 var(--mono); letter-spacing:.14em; color:var(--beam);
+  font-variant-numeric:tabular-nums;
+}
+.proc-title{
+  margin:0 0 .45rem; font-family:var(--display); font-weight:600;
+  font-size:1.05rem; letter-spacing:-.01em; color:var(--ink);
+}
+.proc-step p{ margin:0 0 .8rem; font-size:.94rem; color:var(--mute); }
+.proc-when{ font:500 .76rem/1 var(--mono); color:var(--ink); opacity:.75; }
+@media (max-width:860px){ .proc-list{ grid-template-columns:1fr 1fr; } }
+@media (max-width:520px){ .proc-list{ grid-template-columns:1fr; } }
+
+/* ── chi sono ───────────────────────────────────────────────── */
+.abt-head{ margin-bottom:clamp(2.2rem,5vh,3.4rem); }
+.abt-grid{
+  display:grid; gap:clamp(2rem,5vw,4.5rem); align-items:center;
+  grid-template-columns:minmax(0,1.05fr) minmax(0,1fr);
+}
+.abt-text .lede{ margin:0; }
+.abt-text .lede + .lede{ margin-top:1.15rem; }
+/* The name, taken literally. One beam of light enters a glass prism and
+   leaves as four rays, and each ray lands on a fact. The rays are drawn
+   in JS to wherever each fact's dot actually sits, so they stay attached
+   when text wraps or the screen changes size.
+
+   It plays once, as the section arrives: beam, prism, then the rays
+   fanning out one after another. After that it only moves when asked —
+   pointing at a fact sends a glint of light down its ray. */
+.abt-prism{
+  position:relative;
+  display:grid; align-items:center;
+  grid-template-columns:clamp(110px, 38%, 230px) minmax(0,1fr);
+  min-height:380px;
+}
+.abt-rays{
+  position:absolute; inset:0; width:100%; height:100%;
+  overflow:visible; pointer-events:none;
+}
+.abt-glass{
+  position:relative; z-index:2; justify-self:end;
+  width:clamp(88px, 82%, 180px); aspect-ratio:120 / 110;
+  margin-right:clamp(6px, 1.5vw, 16px);
+  filter:drop-shadow(0 16px 24px rgba(47,3,102,.26));
+  opacity:0; transform:scale(.86);
+  transition:opacity .6s var(--ease) .15s, transform .9s var(--ease) .15s;
+}
+.abt-glass svg{ display:block; width:100%; height:100%; overflow:visible; }
+
+.abt-spectrum{
+  position:relative; z-index:2; margin:0;
+  padding:0 0 0 clamp(3.2rem, 7vw, 5.5rem);
+  display:flex; flex-direction:column; gap:clamp(1.2rem, 3.2vh, 1.7rem);
+}
+.abt-ray{
+  position:relative;
+  opacity:0; transform:translateX(-12px);
+  transition:opacity .6s var(--ease), transform .7s var(--ease);
+  transition-delay:calc(1.2s + var(--i) * 120ms);
+}
+.abt-dot{
+  position:absolute; left:-1.4rem; top:.02rem;
+  width:9px; height:9px; border-radius:50%;
+  background:var(--c);
+  box-shadow:0 0 0 4px rgba(174,102,255,.14), 0 0 14px rgba(174,102,255,.55);
+  box-shadow:0 0 0 4px rgb(from var(--c) r g b / .16), 0 0 14px rgb(from var(--c) r g b / .6);
+  transition:transform .3s var(--ease);
+}
+.abt-ray dt{
+  font:500 .7rem/1 var(--mono); letter-spacing:.16em; text-transform:uppercase;
+  color:var(--mute);
+}
+.abt-ray dd{
+  margin:.45rem 0 0; font-family:var(--display); font-weight:600;
+  font-size:clamp(1rem, 1.6vw, 1.25rem); line-height:1.25; letter-spacing:-.01em;
+  color:var(--ink);
+}
+/* the status ray's dot is the live one */
+.abt-ray:last-child .abt-dot{ animation:live 2.2s var(--ease) infinite; }
+
+/* the drawn light */
+.abt-beam, .abt-line{
+  fill:none; stroke-linecap:round;
+  stroke-dasharray:1; stroke-dashoffset:1;
+}
+.abt-beam{ stroke-width:2.4; transition:stroke-dashoffset .65s var(--ease) .2s; }
+.abt-line{
+  stroke-width:2;
+  transition:stroke-dashoffset .75s var(--ease), stroke-width .3s var(--ease);
+  transition-delay:calc(.85s + var(--i) * 120ms), 0s;
+}
+.abt-fan{
+  opacity:0;
+  transition:opacity .9s var(--ease);
+  transition-delay:calc(1.05s + var(--i) * 120ms);
+}
+.abt-pulse{
+  fill:none; stroke:#fff; stroke-width:3.2; stroke-linecap:round;
+  /* one short dash with a long gap after it; at rest it sits off the end */
+  stroke-dasharray:.08 2; stroke-dashoffset:.2;
+}
+
+.abt-prism.in .abt-glass{ opacity:1; transform:none; }
+.abt-prism.in .abt-beam,
+.abt-prism.in .abt-line{ stroke-dashoffset:0; }
+.abt-prism.in .abt-fan{ opacity:1; }
+.abt-prism.in .abt-ray{ opacity:1; transform:none; }
+
+/* point at a fact: its ray brightens and light travels in and down it */
+.abt-ray:hover .abt-dot{ transform:scale(1.35); }
+.abt-prism:has(.abt-ray:nth-child(1):hover) .abt-g[data-i="0"] .abt-line,
+.abt-prism:has(.abt-ray:nth-child(2):hover) .abt-g[data-i="1"] .abt-line,
+.abt-prism:has(.abt-ray:nth-child(3):hover) .abt-g[data-i="2"] .abt-line,
+.abt-prism:has(.abt-ray:nth-child(4):hover) .abt-g[data-i="3"] .abt-line{ stroke-width:3.4; }
+.abt-prism:has(.abt-ray:hover) > .abt-rays > .abt-pulse{ animation:glint .55s linear; }
+.abt-prism:has(.abt-ray:nth-child(1):hover) .abt-g[data-i="0"] .abt-pulse,
+.abt-prism:has(.abt-ray:nth-child(2):hover) .abt-g[data-i="1"] .abt-pulse,
+.abt-prism:has(.abt-ray:nth-child(3):hover) .abt-g[data-i="2"] .abt-pulse,
+.abt-prism:has(.abt-ray:nth-child(4):hover) .abt-g[data-i="3"] .abt-pulse{ animation:glint .6s linear .45s both; }
+@keyframes glint{
+  from{ stroke-dashoffset:.09; }
+  to{   stroke-dashoffset:-1.02; }
+}
+
+html:not(.js) .abt-glass, html:not(.js) .abt-ray{ opacity:1; transform:none; }
+@media (prefers-reduced-motion: reduce){
+  .abt-prism *, .abt-prism *::before{ transition:none !important; animation:none !important; }
+}
+@media (max-width:420px){
+  .abt-prism{ grid-template-columns:88px minmax(0,1fr); min-height:320px; }
+  .abt-spectrum{ padding-left:2.6rem; }
+}
+@media (max-width:860px){ .abt-grid{ grid-template-columns:1fr; } }
+
+/* ── contatti ───────────────────────────────────────────────── */
+/* The one place on the page that has to be found instantly, so it breaks
+   the page's own rule: a dark panel on the light page — the intro's
+   canvas come back — with the address as the largest type in the
+   section. Everything is centred on one axis so the eye has nowhere
+   else to go. */
+.cta-head{ text-align:center; }
+.cta-head .eyebrow{ justify-content:center; }
+.cta-head .h2{ max-width:none; margin-inline:auto; }
+.cta-head .lede{ margin-inline:auto; max-width:52ch; }
+
+.cta-panel{
+  position:relative; isolation:isolate; overflow:hidden;
+  margin:clamp(2.4rem,6vh,3.6rem) auto 0; max-width:960px;
+  padding:clamp(2.2rem,5vw,3.8rem) clamp(1.25rem,4vw,3.5rem);
+  border-radius:28px; text-align:center; color:var(--on-dark);
+  background:
+    radial-gradient(60% 85% at 16% 0%, rgba(174,102,255,.38), transparent 62%),
+    radial-gradient(55% 75% at 88% 100%, rgba(89,36,153,.50), transparent 66%),
+    var(--dark);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.20),
+    0 44px 90px -40px rgba(47,3,102,.70),
+    0 10px 30px -18px rgba(47,3,102,.45);
+}
+/* the prism rim, same dispersion as the glass */
+.cta-panel::before{
+  content:""; position:absolute; inset:0; z-index:1;
+  border-radius:inherit; pointer-events:none; padding:1.5px;
+  background:linear-gradient(135deg,
+    rgba(255,255,255,.60) 0%, rgba(174,102,255,.85) 28%,
+    rgba(255,255,255,.06) 52%, rgba(132,69,204,.70) 76%, rgba(255,255,255,.45) 100%);
+  -webkit-mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+          mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite:xor; mask-composite:exclude;
+}
+.cta-panel::after{
+  content:""; position:absolute; inset:0; z-index:-1; pointer-events:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='g' x='0' y='0'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  1.15 0 0 0 -0.44'/%3E%3C/filter%3E%3Crect width='240' height='240' filter='url%28%23g%29'/%3E%3C/svg%3E"); background-size:240px 240px; opacity:.12;
+}
+.cta-panel > *{ position:relative; z-index:2; }
+
+.cta-status{
+  display:inline-flex; align-items:center; gap:.55rem;
+  margin:0 0 clamp(1.1rem,3vh,1.6rem); padding:.5rem .95rem; border-radius:999px;
+  background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.16);
+  font:500 .82rem/1 var(--body); color:rgba(243,238,252,.9);
+}
+.cta-status-dot{
+  width:8px; height:8px; border-radius:50%; background:var(--beam); flex:none;
+  animation:live 2.2s var(--ease) infinite;
+}
+@keyframes live{
+  0%{   box-shadow:0 0 0 0 rgba(174,102,255,.55) }
+  70%{  box-shadow:0 0 0 9px rgba(174,102,255,0) }
+  100%{ box-shadow:0 0 0 0 rgba(174,102,255,0) }
+}
+
+/* The address: the biggest thing here. Every few seconds its letters
+   hop, one after another, left to right — a keyboard pretending to type
+   it out. The stagger carries a little irregularity so it reads as keys
+   being hit rather than a sine wave, and each letter takes a touch of
+   lilac on the way up, so a light travels across with it. */
+.cta-mail{
+  display:inline-block; max-width:100%;
+  font-family:var(--display); font-weight:700;
+  font-size:clamp(1.15rem, 5.9vw, 4.2rem); line-height:1.1; letter-spacing:-.025em;
+  overflow-wrap:anywhere; color:#fff;
+  transition:transform .3s var(--ease);
+}
+.cta-mail:hover{ transform:translateY(-2px); }
+.cta-mail span{ display:inline-block; }
+/* waits for the panel to be revealed, so the first wave is seen */
+.cta-panel.in .cta-mail span{
+  animation:hop 5.6s infinite both;
+  animation-delay:calc(700ms + var(--k, 0ms));
+}
+@keyframes hop{
+  0%{   transform:translateY(0);      color:#fff;
+        animation-timing-function:cubic-bezier(.2,.7,.3,1); }
+  2.6%{ transform:translateY(-.15em); color:#eadfff;
+        animation-timing-function:cubic-bezier(.5,0,.5,1); }
+  5.4%{ transform:translateY(.01em);  color:#fff;
+        animation-timing-function:ease-out; }
+  7%, 100%{ transform:translateY(0); color:#fff; }
+}
+
+.cta-actions{
+  display:flex; flex-wrap:wrap; justify-content:center; gap:.8rem;
+  margin-top:clamp(1.6rem,4vh,2.3rem);
+}
+.cta-send, .cta-copy{
+  display:inline-flex; align-items:center; gap:.6rem; min-height:48px;
+  padding:0 1.5rem; border-radius:999px; cursor:pointer;
+  font:600 .95rem/1 var(--body);
+  transition:transform .25s var(--ease), box-shadow .25s var(--ease),
+             background .25s var(--ease), border-color .25s var(--ease), color .25s var(--ease);
+}
+.cta-send{
+  background:#fff; color:var(--ink); border:0;
+  box-shadow:0 14px 34px -14px rgba(174,102,255,.9);
+}
+.cta-send span{ transition:transform .25s var(--ease); }
+.cta-send:hover{ transform:translateY(-2px); box-shadow:0 20px 44px -16px rgba(174,102,255,1); }
+.cta-send:hover span{ transform:translateX(4px); }
+.cta-copy{
+  background:rgba(255,255,255,.06); color:var(--on-dark);
+  border:1px solid rgba(255,255,255,.24);
+}
+.cta-copy:hover{ background:rgba(255,255,255,.12); border-color:rgba(255,255,255,.45); }
+.cta-copy.done{ background:rgba(174,102,255,.28); border-color:var(--beam); color:#fff; }
+.cta-panel :focus-visible{ outline-color:#fff; }
+
+.cta-links{
+  list-style:none; display:flex; justify-content:center; gap:1.6rem;
+  margin:1.6rem 0 0; padding:0;
+  font:500 .86rem/1 var(--body); color:var(--mute);
+}
+.cta-links a{ transition:color .2s var(--ease); }
+.cta-links a:hover{ color:var(--ink); }
+
+@media (prefers-reduced-motion: reduce){
+  .cta-mail span{ animation:none !important; }
+  .cta-status-dot{ animation:none; }
+}
+
+/* ── footer ─────────────────────────────────────────────────── */
+.foot{
+  max-width:var(--max); margin:0 auto;
+  padding:2.4rem var(--gut) 3.4rem; border-top:1px solid var(--hair);
+  display:flex; flex-wrap:wrap; gap:1rem; align-items:baseline;
+  justify-content:space-between;
+  font:500 .78rem/1.6 var(--mono); color:var(--mute);
+}
+.foot-mark{ font-family:var(--display); font-weight:800; font-size:.95rem; color:var(--ink); }
+.foot-mark span{ color:var(--beam); }
+
+/* ── scroll reveals ─────────────────────────────────────────── */
+html.js .reveal{ opacity:0; transform:translateY(22px); }
+html.js .reveal.in{
+  opacity:1; transform:none;
+  transition:opacity .8s var(--ease) var(--d,0ms), transform .8s var(--ease) var(--d,0ms);
+}
+
+/* ── reduced motion / no JS: land on the finished page ───────── */
+html:not(.js) .starter,    .calm .starter{ display:none; }
+html:not(.js) .hero-bg,    .calm .hero-bg{ opacity:0; }
+html:not(.js) .word-row,   .calm .word-row{
+  color:var(--ink); transform:translate(-50%, calc(-50% - var(--rise)));
+}
+html:not(.js) .word-left,  .calm .word-left,
+html:not(.js) .word-right, .calm .word-right{ transform:none; }
+html:not(.js) .subhero,    .calm .subhero{ opacity:1; transform:translate(-50%,0); }
+html:not(.js) .glass-nav,  .calm .glass-nav{ opacity:1; transform:translate(-50%,0); pointer-events:auto; }
+html:not(.js) .hero-more,  .calm .hero-more{ opacity:.6; }
+html:not(.js) .hero-badge, .calm .hero-badge{ opacity:1; transform:translate(-50%,0); }
+.calm .reveal, html.calm .reveal{ opacity:1 !important; transform:none !important; }
+@media (prefers-reduced-motion: no-preference){ html{ scroll-behavior:smooth; } }
+</style>
+<script>
+  document.documentElement.className = 'js';
+  if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
+</script>
+</head>
+<body>
+
+<div class="progress" id="progress" aria-hidden="true"><i id="progressFill"></i></div>
+
+<a class="skip" href="#content">Salta al contenuto</a>
+
+<header class="glass-nav lg" id="glassNav">
+  <a class="gnav-mark" href="#top" aria-label="prismadev, torna su"><b>prisma</b><span>dev</span></a>
+  <nav class="gnav-links" aria-label="Primary">
+    <a href="#servizi">Servizi</a>
+    <a href="#lavori">Lavori</a>
+    <a href="#chi-sono">Chi sono</a>
+    <a href="#contatti">Contatti</a>
+  </nav>
+  <a class="gnav-cta" href="mailto:info@prismadev.net?subject=Nuovo%20progetto">Inizia un progetto</a>
+</header>
+
+<main class="page">
+
+  <div class="mesh" aria-hidden="true">
+    <span class="b" style="--x:12%;--y:3%;--s:max(58vw,380px);--rgb:174 102 255;--a:.17;--t:26s;--dx:5vw;--dy:4vh"></span>
+    <span class="b" style="--x:88%;--y:12%;--s:max(50vw,380px);--rgb:132 69 204;--a:.13;--t:33s;--dx:-6vw;--dy:6vh"></span>
+    <span class="b" style="--x:16%;--y:27%;--s:max(54vw,380px);--rgb:174 102 255;--a:.12;--t:29s;--dx:6vw;--dy:-5vh"></span>
+    <span class="b" style="--x:84%;--y:43%;--s:max(60vw,380px);--rgb:89 36 153;--a:.10;--t:37s;--dx:-5vw;--dy:5vh"></span>
+    <span class="b" style="--x:10%;--y:59%;--s:max(52vw,380px);--rgb:132 69 204;--a:.12;--t:31s;--dx:5vw;--dy:6vh"></span>
+    <span class="b" style="--x:86%;--y:75%;--s:max(56vw,380px);--rgb:174 102 255;--a:.13;--t:35s;--dx:-6vw;--dy:-4vh"></span>
+    <span class="b" style="--x:32%;--y:93%;--s:max(62vw,380px);--rgb:89 36 153;--a:.10;--t:40s;--dx:4vw;--dy:-5vh"></span>
+    <span class="grain"></span>
+  </div>
+
+  <section class="hero" id="hero">
+    <span id="top" aria-hidden="true"></span>
+    <div class="hero-bg" id="heroBg" aria-hidden="true"></div>
+    <div class="hero-flash" id="heroFlash" aria-hidden="true"></div>
+
+    <button class="starter" id="starter" type="button">
+      Premi per iniziare
+    </button>
+
+    <h1 class="hero-title">
+      <span class="sr-only">prismadev</span>
+      <span class="word-row" id="wordRow" aria-hidden="true"><span class="word-pop" id="wordPop"><span class="word word-left" id="wordLeft">prisma</span><span class="word word-right" id="wordRight">dev</span></span></span>
+    </h1>
+
+    <p class="subhero" id="subhero">Il digitale, <em>fatto bene</em>.</p>
+
+    <p class="hero-badge lg" id="heroBadge">
+      <span class="hero-badge-dot" aria-hidden="true"></span>
+      <span>Disponibile <strong>ora</strong></span>
+    </p>
+
+    <a class="hero-more" id="heroMore" href="#servizi" aria-label="Vai ai servizi">
+      <svg viewBox="0 0 16 22" fill="none"><path d="M8 1v18M2 13l6 6 6-6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </a>
+  </section>
+
+  <div id="content">
+
+    <!-- ══ servizi — ordered by how far each one bends ══════════════ -->
+    <section class="section" id="servizi">
+      <header class="svc-head reveal">
+        <p class="eyebrow">Servizi</p>
+        <h2 class="h2">Un sito ha bisogno di <em>quattro</em> cose.</h2>
+        <p class="lede">Le trovi qui in ordine: si parte da quello che vedi appena apri il
+          sito, e si scende fino a quello che non si vede mai — ma che decide se il sito
+          funziona o no.</p>
+      </header>
+
+      <ul class="svc-list">
+        <li class="svc-row reveal" style="--c:#AE66FF">
+          <span class="svc-deg">08°</span>
+          <div>
+            <h3 class="svc-title">Come appare</h3>
+            <p>Il disegno del sito e la sua costruzione, fatti dalla stessa persona. Testi
+              leggibili, pulsanti dove te li aspetti, e tutto che funziona uguale sul telefono
+              e sul computer.</p>
+          </div>
+          <ul class="svc-tags"><li>Disegno</li><li>Telefono e PC</li><li>Leggibile da tutti</li></ul>
+        </li>
+        <li class="svc-row reveal" style="--c:#8445CC">
+          <span class="svc-deg">18°</span>
+          <div>
+            <h3 class="svc-title">Come si muove</h3>
+            <p>Le animazioni servono a farti capire dove sei finito e cosa è appena successo.
+              Poche e discrete — e spente del tutto per chi preferisce così.</p>
+          </div>
+          <ul class="svc-tags"><li>Passaggi fluidi</li><li>Dettagli</li><li>Niente capogiri</li></ul>
+        </li>
+        <li class="svc-row reveal" style="--c:#592499">
+          <span class="svc-deg">28°</span>
+          <div>
+            <h3 class="svc-title">Cosa c’è dietro</h3>
+            <p>La parte che non si vede: dove finiscono i dati, come si entra con la
+              password, come si incassano i pagamenti. E un pannello dove cambi testi e foto
+              da solo, senza chiamare me.</p>
+          </div>
+          <ul class="svc-tags"><li>Dati</li><li>Accessi</li><li>Pagamenti</li></ul>
+        </li>
+        <li class="svc-row reveal" style="--c:#2F0366">
+          <span class="svc-deg">38°</span>
+          <div>
+            <h3 class="svc-title">Quanto va veloce</h3>
+            <p>Misurata, non promessa. Google dà un voto di velocità a ogni sito: il tuo lo
+              passa, provato su telefoni veri e connessioni vere, non solo sul mio computer.</p>
+          </div>
+          <ul class="svc-tags"><li>Voto Google</li><li>Test su telefono</li><li>Numeri alla mano</li></ul>
+        </li>
+      </ul>
+    </section>
+
+    <!-- ══ lavori ══════════════════════════════════════════════════ -->
+    <section class="section" id="lavori">
+      <header class="work-head reveal">
+        <p class="eyebrow">Lavori</p>
+        <h2 class="h2">Tre tipi di lavoro che <em>faccio</em>.</h2>
+        <p class="lede">Quasi tutto quello che costruisco è uno di questi tre. Cambia il
+          problema da risolvere, non il modo in cui lavoro.</p>
+      </header>
+
+      <div class="work-grid">
+        <div class="work-slot reveal" style="--d:0ms">
+          <div class="work-fan">
+          <article class="work-card lg" style="--c:#AE66FF">
+          <div class="work-field" style="--a:-7deg" aria-hidden="true"></div>
+          <div class="work-body">
+            <span class="work-chip lg-sm">Esempio in arrivo</span>
+            <h3 class="work-title">Siti prodotto</h3>
+            <p>Il sito che spiega cosa fai e deve reggere il giorno in cui lo annunci.
+              I testi li cambi tu, quando vuoi.</p>
+            </div>
+          </article>
+          </div>
+        </div>
+        <div class="work-slot reveal" style="--d:80ms">
+          <div class="work-fan">
+          <article class="work-card lg" style="--c:#8445CC">
+          <div class="work-field" style="--a:-2deg" aria-hidden="true"></div>
+          <div class="work-body">
+            <span class="work-chip lg-sm">Esempio in arrivo</span>
+            <h3 class="work-title">Programmi da usare ogni giorno</h3>
+            <p>Lo strumento con cui tu o i tuoi colleghi lavorate ogni giorno. Deve restare
+              chiaro anche quando i dati diventano tanti.</p>
+            </div>
+          </article>
+          </div>
+        </div>
+        <div class="work-slot reveal" style="--d:160ms">
+          <div class="work-fan">
+          <article class="work-card lg" style="--c:#592499">
+          <div class="work-field" style="--a:5deg" aria-hidden="true"></div>
+          <div class="work-body">
+            <span class="work-chip lg-sm">Esempio in arrivo</span>
+            <h3 class="work-title">Siti da rimettere in piedi</h3>
+            <p>Un sito già fatto che si è bloccato a metà, o che è online e dà problemi.
+              Prima guardo cosa c'è, poi ti dico cosa si salva e cosa conviene rifare.</p>
+            </div>
+          </article>
+          </div>
+        </div>
+      </div>
+
+      <p class="work-note reveal">Qui arrivano i lavori veri, con i numeri di prima e dopo.</p>
+    </section>
+
+    <!-- ══ processo — una sequenza vera, quindi numerata ════════════ -->
+    <section class="section" id="processo">
+      <header class="proc-head reveal">
+        <p class="eyebrow">Processo</p>
+        <h2 class="h2">Dalla prima chiacchierata al sito <em>online</em>.</h2>
+        <p class="lede">Non c’è un commerciale in mezzo. Dal primo disegno all’ultimo
+          giorno parli sempre con me, cioè con chi il sito lo costruisce davvero.</p>
+      </header>
+
+      <ol class="proc-list">
+        <li class="proc-step reveal" style="--d:0ms">
+          <span class="proc-n">01</span>
+          <h3 class="proc-title">Ne parliamo</h3>
+          <p>Mi racconti cosa ti serve, per quando, e qual è il problema più grosso.</p>
+          <span class="proc-when">una chiamata</span>
+        </li>
+        <li class="proc-step reveal" style="--d:80ms">
+          <span class="proc-n">02</span>
+          <h3 class="proc-title">Ti mando il preventivo</h3>
+          <p>Cosa faccio, quanto ci metto, quanto costa. Prezzo fisso. Se l’idea non sta in piedi te lo dico subito.</p>
+          <span class="proc-when">due giorni</span>
+        </li>
+        <li class="proc-step reveal" style="--d:160ms">
+          <span class="proc-n">03</span>
+          <h3 class="proc-title">Lo costruisco</h3>
+          <p>Te lo faccio vedere mentre prende forma, così non ci sono sorprese alla fine.</p>
+          <span class="proc-when">1–2 settimane</span>
+        </li>
+        <li class="proc-step reveal" style="--d:240ms">
+          <span class="proc-n">04</span>
+          <h3 class="proc-title">Va online</h3>
+          <p>Il sito va online, e ti lascio le istruzioni per gestirlo anche senza di me.</p>
+          <span class="proc-when">subito dopo</span>
+        </li>
+      </ol>
+    </section>
+
+    <!-- ══ chi sono ════════════════════════════════════════════════ -->
+    <section class="section" id="chi-sono">
+      <header class="abt-head reveal">
+        <p class="eyebrow">Chi sono</p>
+        <h2 class="h2">Una persona sola, <em>dall’inizio alla fine.</em></h2>
+      </header>
+
+      <div class="abt-grid">
+        <div class="abt-text reveal" style="--d:80ms">
+          <p class="lede">prismadev sono io. Chi disegna il tuo sito è anche chi lo
+            costruisce: niente passaggi di mano, niente dettagli persi per strada.</p>
+          <p class="lede">Lavoro con aziende piccole, a progetto o in modo continuativo.
+            I lavori che preferisco hanno un problema vero da risolvere: una scadenza,
+            un vecchio sistema, un sito da rendere veloce.</p>
+        </div>
+
+        <div class="abt-prism reveal" id="abtPrism" style="--d:120ms">
+          <svg class="abt-rays" id="abtRays" aria-hidden="true"></svg>
+          <div class="abt-glass" aria-hidden="true">
+            <svg viewBox="0 0 120 110">
+              <defs>
+                <linearGradient id="abtGlassFill" x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0" stop-color="#fff" stop-opacity=".96"/>
+                  <stop offset=".55" stop-color="#F1E6FF" stop-opacity=".9"/>
+                  <stop offset="1" stop-color="#AE66FF" stop-opacity=".34"/>
+                </linearGradient>
+                <linearGradient id="abtInside" x1="0" y1="0" x2="1" y2="0">
+                  <stop offset="0" stop-color="#2F0366" stop-opacity=".75"/>
+                  <stop offset="1" stop-color="#AE66FF" stop-opacity=".9"/>
+                </linearGradient>
+              </defs>
+              <path d="M60 6 L114 104 H6 Z" fill="url(#abtGlassFill)" stroke="#2F0366" stroke-width="2.2" stroke-linejoin="round"/>
+              <path d="M30.3 59.9 L89.7 59.9" stroke="url(#abtInside)" stroke-width="2.4" stroke-linecap="round"/>
+              <path d="M62 17 L101 88" stroke="#fff" stroke-width="3" stroke-linecap="round" opacity=".85"/>
+            </svg>
+          </div>
+          <dl class="abt-spectrum">
+            <div class="abt-ray" style="--i:0;--c:#AE66FF"><dt><span class="abt-dot" aria-hidden="true"></span>Dove</dt><dd>Da remoto, in tutta Europa</dd></div>
+            <div class="abt-ray" style="--i:1;--c:#8445CC"><dt><span class="abt-dot" aria-hidden="true"></span>Tempi</dt><dd>1–2 settimane</dd></div>
+            <div class="abt-ray" style="--i:2;--c:#592499"><dt><span class="abt-dot" aria-hidden="true"></span>Lingue</dt><dd>Italiano, inglese</dd></div>
+            <div class="abt-ray" style="--i:3;--c:#2F0366"><dt><span class="abt-dot" aria-hidden="true"></span>Stato</dt><dd>Disponibile ora</dd></div>
+          </dl>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══ contatti ════════════════════════════════════════════════ -->
+    <section class="section" id="contatti">
+      <header class="cta-head reveal">
+        <p class="eyebrow">Contatti</p>
+        <h2 class="h2">Raccontami il progetto.<br><em>Ti rispondo con un piano.</em></h2>
+        <p class="lede">Bastano tre cose: cosa vuoi costruire, per quando ti serve, e cosa
+          ti sta bloccando adesso. Ti rispondo di solito in due giorni con cosa faccio,
+          quanto ci metto e quanto costa — a prezzo fisso.</p>
+      </header>
+
+      <div class="cta-panel reveal" style="--d:120ms">
+        <p class="cta-status"><span class="cta-status-dot" aria-hidden="true"></span>Disponibile ora</p>
+        <div><a class="cta-mail" href="mailto:info@prismadev.net?subject=Nuovo%20progetto">info@prismadev.net</a></div>
+        <div class="cta-actions">
+          <a class="cta-send" href="mailto:info@prismadev.net?subject=Nuovo%20progetto">Scrivimi una email <span aria-hidden="true">→</span></a>
+          <button class="cta-copy" id="copyMail" type="button">Copia indirizzo</button>
+        </div>
+      </div>
+
+      <ul class="cta-links reveal" style="--d:180ms">
+        <li><a href="https://github.com/" rel="me noopener">GitHub</a></li>
+      </ul>
+    </section>
+
+    <footer class="foot">
+      <span class="foot-mark">prisma<span>dev</span></span>
+      <span>Il digitale, fatto bene.</span>
+      <span>© 2026</span>
+    </footer>
+
+  </div>
+
+</main>
+
+<script>
+/* The intro is a fixed timeline, not a scrub. Press starts it; every
+   beat below is an offset in milliseconds from that press. The word
+   positions are measured in pixels off the real type, so the resting
+   beat sits against the actual screen edges at any width. */
+(function () {
+  'use strict';
+
+  var root = document.documentElement;
+  var calm = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  var hero      = document.getElementById('hero');
+  var heroFlash = document.getElementById('heroFlash');
+  var wordRow   = document.getElementById('wordRow');
+  var wordPop   = document.getElementById('wordPop');
+  var wordLeft  = document.getElementById('wordLeft');
+  var wordRight = document.getElementById('wordRight');
+  var starter   = document.getElementById('starter');
+  var subhero   = document.getElementById('subhero');
+  var heroMore  = document.getElementById('heroMore');
+  var glassNav  = document.getElementById('glassNav');
+
+  /* beats, in ms from the press */
+  var LEAD     = 140;   /* breath between the press and the first move  */
+  var TRAVEL   = 900;   /* off-canvas → the edges, a long settling glide */
+  var HOLD     = 700;   /* the rest — the part that has to feel held     */
+  var ANTIC    = 170;   /* the pull back out, which is what sells the pop */
+  var CONVERGE = 620;   /* the close, still accelerating when it lands   */
+
+  function unlock(){ root.classList.remove('locked'); }
+
+  /* Layer promotion is only worth it while something is moving. */
+  function release(){
+    [wordRow, wordPop, wordLeft, wordRight].forEach(function (el) {
+      el.style.willChange = 'auto';
+    });
+  }
+
+  function land(){
+    hero.classList.add('is-day', 'is-risen');
+    wordLeft.style.transform  = 'translateX(0px)';
+    wordRight.style.transform = 'translateX(0px)';
+    subhero.classList.add('in');
+    heroMore.classList.add('in');
+    var badge0 = document.getElementById('heroBadge');
+    if (badge0) badge0.classList.add('in');
+    var bar0 = document.getElementById('progress');
+    if (bar0) bar0.classList.add('visible');
+    glassNav.classList.add('visible');
+    starter.classList.add('gone');
+    starter.hidden = true;
+    unlock();
+    release();
+  }
+
+  /* Anyone who asked for less motion gets the finished page, no intro. */
+  if (calm) { root.classList.add('calm'); land(); return; }
+
+  root.classList.add('locked');
+
+  var pos = { leftOff:0, rightOff:0, leftRest:0, rightRest:0, antic:0 };
+  var state = 'idle';
+
+  function setDur(ms, ease){
+    wordLeft.style.transitionDuration  = ms + 'ms';
+    wordRight.style.transitionDuration = ms + 'ms';
+    if (ease) {
+      wordLeft.style.transitionTimingFunction  = ease;
+      wordRight.style.transitionTimingFunction = ease;
+    }
+  }
+
+  function place(l, r){
+    wordLeft.style.transform  = 'translateX(' + l + 'px)';
+    wordRight.style.transform = 'translateX(' + r + 'px)';
+  }
+
+  /* Measured with the words at their natural, merged position: that is
+     the only arrangement whose geometry the rest of the timeline is
+     expressed against. Reading and restoring happens between paints, so
+     the trip through the merged state is never visible. */
+  function measure(){
+    var prevL = wordLeft.style.transitionDuration;
+    var prevR = wordRight.style.transitionDuration;
+    setDur(0);
+    wordLeft.style.transform  = 'none';
+    wordRight.style.transform = 'none';
+
+    var vw = window.innerWidth;
+    var lr = wordLeft.getBoundingClientRect();
+    var rr = wordRight.getBoundingClientRect();
+    var margin = Math.max(14, Math.min(64, vw * 0.045));
+
+    pos.leftRest  = Math.round(margin - lr.left);
+    pos.rightRest = Math.round((vw - margin) - rr.right);
+    pos.leftOff   = Math.round(-(lr.right + 80));
+    pos.rightOff  = Math.round((vw - rr.left) + 80);
+    pos.antic     = Math.round(Math.max(10, Math.min(34, vw * 0.022)));
+
+    wordLeft.style.transitionDuration  = prevL;
+    wordRight.style.transitionDuration = prevR;
+  }
+
+  function seat(instant){
+    if (instant) setDur(0);
+    if (state === 'idle')      { place(pos.leftOff,  pos.rightOff);  hero.classList.remove('is-risen'); }
+    else if (state === 'rest') { place(pos.leftRest, pos.rightRest); hero.classList.remove('is-risen'); }
+    else                       { place(0, 0);                        hero.classList.add('is-risen'); }
+  }
+
+  measure();
+  seat(true);
+
+  /* Unbounded changes the metrics, so re-seat once it has actually
+     loaded — but only while nothing has started moving. */
+  if (document.fonts && document.fonts.ready) {
+    document.fonts.ready.then(function () {
+      if (state === 'idle') { measure(); seat(true); }
+    });
+  }
+
+  function play(){
+    if (state !== 'idle') return;
+    state = 'rest';
+
+    starter.classList.add('gone');
+    setTimeout(function(){ starter.hidden = true; }, 280);
+
+    setTimeout(function(){                        /* in from the sides */
+      setDur(TRAVEL, 'cubic-bezier(.16,.84,.30,1)');
+      place(pos.leftRest, pos.rightRest);
+    }, LEAD);
+
+    setTimeout(function(){                        /* pull back out */
+      setDur(ANTIC, 'cubic-bezier(.33,1,.68,1)');
+      place(pos.leftRest - pos.antic, pos.rightRest + pos.antic);
+    }, LEAD + TRAVEL + HOLD);
+
+    setTimeout(function(){                        /* the close, and the rise */
+      state = 'merged';
+      setDur(CONVERGE, 'cubic-bezier(.55,.055,.675,.19)');
+      place(0, 0);
+      hero.classList.add('is-risen');
+      armContact();
+    }, LEAD + TRAVEL + HOLD + ANTIC);
+  }
+
+  /* The pop has to start on the frame the motion stops, not on a timer
+     that drifts a frame or two past it — a gap between the two is
+     exactly what makes a pop read as a separate zoom. transitionend is
+     that frame; the timer is only a backstop for a throttled tab. */
+  function armContact(){
+    var fired = false;
+    var backstop;
+
+    function contact(){
+      if (fired) return;
+      fired = true;
+      clearTimeout(backstop);
+      wordLeft.removeEventListener('transitionend', onEnd);
+
+      wordPop.classList.add('pop');
+      heroFlash.classList.add('fire');
+      hero.classList.add('is-day');
+
+      setTimeout(function(){ subhero.classList.add('in'); }, 240);
+      setTimeout(function(){
+        glassNav.classList.add('visible');
+        heroMore.classList.add('in');
+        var badge = document.getElementById('heroBadge');
+        if (badge) badge.classList.add('in');
+        var bar = document.getElementById('progress');
+        if (bar) bar.classList.add('visible');
+      }, 500);
+      setTimeout(function(){ state = 'done'; unlock(); release(); }, 780);
+    }
+
+    function onEnd(e){ if (e.propertyName === 'transform') contact(); }
+
+    wordLeft.addEventListener('transitionend', onEnd);
+    backstop = setTimeout(contact, CONVERGE + 90);
+  }
+
+  starter.addEventListener('click', play);
+
+  var rt;
+  window.addEventListener('resize', function(){
+    clearTimeout(rt);
+    rt = setTimeout(function(){
+      hero.classList.add('no-anim');
+      measure();
+      seat(true);
+      void hero.offsetWidth;                      /* commit before re-arming */
+      hero.classList.remove('no-anim');
+    }, 120);
+  });
+})();
+</script>
+<script>
+/* Everything below the hero: reveals, the nav's sense of where you are,
+   and the copy button. All of it independent of the intro — if the intro
+   never runs, this still works. */
+(function () {
+  'use strict';
+
+  var calm = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  /* reveals */
+  var targets = document.querySelectorAll('.reveal');
+  if (calm || !('IntersectionObserver' in window)) {
+    Array.prototype.forEach.call(targets, function (el) { el.classList.add('in'); });
+  } else {
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) {
+        if (!e.isIntersecting) return;
+        e.target.classList.add('in');
+        io.unobserve(e.target);
+      });
+    }, { threshold: 0.15, rootMargin: '0px 0px -8% 0px' });
+    Array.prototype.forEach.call(targets, function (el) { io.observe(el); });
+  }
+
+  /* Which section you are in. Watching a band across the middle of the
+     screen rather than the whole viewport keeps exactly one link lit. */
+  var links = Array.prototype.slice.call(document.querySelectorAll('.gnav-links a'));
+  var sections = links
+    .map(function (a) { return document.querySelector(a.getAttribute('href')); })
+    .filter(Boolean);
+
+  if (sections.length && 'IntersectionObserver' in window) {
+    var seen = {};
+    var spy = new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) { seen[e.target.id] = e.isIntersecting; });
+      var active = null;
+      sections.forEach(function (sec) { if (seen[sec.id] && !active) active = sec.id; });
+      links.forEach(function (a) {
+        a.classList.toggle('active', active !== null && a.getAttribute('href') === '#' + active);
+      });
+    }, { rootMargin: '-45% 0px -45% 0px' });
+    sections.forEach(function (sec) { spy.observe(sec); });
+  }
+
+  /* The liquid in liquid glass: the specular bloom follows the pointer
+     across each pane. Coarse pointers get nothing to follow, and the
+     CSS default parks the bloom off the top edge, so the surface simply
+     stays still. One rAF per pane, coalesced. */
+  if (!calm && window.matchMedia('(hover:hover) and (pointer:fine)').matches) {
+    Array.prototype.forEach.call(document.querySelectorAll('.lg'), function (el) {
+      var raf = null, mx = 50, my = -20;
+      var tilts = el.classList.contains('work-card');   /* only the cards turn */
+      var TILT = 8;                                     /* degrees at the corner */
+      var rx = 0, ry = 0;
+
+      el.addEventListener('pointermove', function (e) {
+        var b = el.getBoundingClientRect();
+        var px = (e.clientX - b.left) / b.width;
+        var py = (e.clientY - b.top) / b.height;
+        mx = px * 100; my = py * 100;
+        rx = (0.5 - py) * TILT * 2;      /* above centre tips it back */
+        ry = (px - 0.5) * TILT * 2;
+        if (raf) return;
+        raf = requestAnimationFrame(function () {
+          raf = null;
+          el.style.setProperty('--mx', mx.toFixed(1) + '%');
+          el.style.setProperty('--my', my.toFixed(1) + '%');
+          if (tilts) {
+            el.classList.add('tilting');
+            el.style.setProperty('--rx', rx.toFixed(2) + 'deg');
+            el.style.setProperty('--ry', ry.toFixed(2) + 'deg');
+          }
+        });
+      });
+
+      el.addEventListener('pointerleave', function () {
+        el.style.removeProperty('--mx');
+        el.style.removeProperty('--my');
+        if (tilts) {
+          el.classList.remove('tilting');   /* the long ease carries it home */
+          el.style.setProperty('--rx', '0deg');
+          el.style.setProperty('--ry', '0deg');
+        }
+      });
+    });
+  }
+
+  /* The bar trails the scroll instead of locking to it. Every frame it
+     closes part of the gap to where the page really is — time-based, so
+     it glides the same at 60Hz and 120Hz — which turns a flick of the
+     wheel into a glide that settles a beat after you stop. Reduced
+     motion gets the exact, immediate version. */
+  var fill = document.getElementById('progressFill');
+  if (fill) {
+    var TAU = 170;                 /* ms: ~63% of the gap closed in this long */
+    var target = 0, shown = 0, running = false, last = 0;
+
+    var measure = function () {
+      var room = document.documentElement.scrollHeight - window.innerHeight;
+      var v = room > 0 ? window.scrollY / room : 0;
+      target = v < 0 ? 0 : v > 1 ? 1 : v;
+    };
+    var draw = function () {
+      fill.style.transform = 'scaleX(' + shown.toFixed(4) + ')';
+    };
+    var step = function (now) {
+      var dt = last ? Math.min(64, now - last) : 16;
+      last = now;
+      var gap = target - shown;
+      if (Math.abs(gap) < 0.0004) {
+        shown = target; draw(); running = false; last = 0;
+        return;
+      }
+      shown += gap * (1 - Math.exp(-dt / TAU));
+      draw();
+      requestAnimationFrame(step);
+    };
+    var kick = function () {
+      measure();
+      if (calm) { shown = target; draw(); return; }
+      if (!running) { running = true; requestAnimationFrame(step); }
+    };
+
+    window.addEventListener('scroll', kick, { passive: true });
+    window.addEventListener('resize', kick);
+    measure(); shown = target; draw();
+  }
+
+  /* Chi sono: the rays run from the prism's exit face to each fact's dot.
+     Measured with offsets rather than bounding boxes, because the prism
+     and the facts are still mid-entrance (scaled, shifted) when this first
+     runs, and the lines have to meet where they will end up. */
+  var prismBox = document.getElementById('abtPrism');
+  if (prismBox) {
+    var NS = 'http://www.w3.org/2000/svg';
+    var raysSvg = document.getElementById('abtRays');
+    var glassEl = prismBox.querySelector('.abt-glass');
+    var rayEls = [].slice.call(prismBox.querySelectorAll('.abt-ray'));
+    var mk = function (name, attrs) {
+      var n = document.createElementNS(NS, name);
+      for (var key in attrs) n.setAttribute(key, attrs[key]);
+      return n;
+    };
+    var at = function (node) {
+      var x = 0, y = 0;
+      while (node && node !== prismBox) { x += node.offsetLeft; y += node.offsetTop; node = node.offsetParent; }
+      return { x: x, y: y };
+    };
+    var f1 = function (n) { return n.toFixed(1); };
+
+    var drawRays = function () {
+      var W = prismBox.offsetWidth, H = prismBox.offsetHeight;
+      if (!W) return;
+      var gp = at(glassEl), sx = glassEl.offsetWidth / 120, sy = glassEl.offsetHeight / 110;
+      var inX = gp.x + 30.3 * sx, inY = gp.y + 59.9 * sy;
+      var outX = gp.x + 89.7 * sx, outY = inY;
+
+      var bx = -Math.min(56, W * .08);   /* the beam starts out beside the text */
+      raysSvg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
+      raysSvg.textContent = '';
+      var defs = mk('defs', {});
+      var bg = mk('linearGradient', { id: 'abtBeamG', gradientUnits: 'userSpaceOnUse', x1: f1(bx), y1: 0, x2: f1(inX), y2: 0 });
+      bg.appendChild(mk('stop', { offset: 0, 'stop-color': '#2F0366', 'stop-opacity': 0 }));
+      bg.appendChild(mk('stop', { offset: 1, 'stop-color': '#2F0366', 'stop-opacity': .85 }));
+      defs.appendChild(bg);
+      raysSvg.appendChild(defs);
+
+      /* the beam rises into the left face, the way light meets a prism */
+      var beam = 'M' + f1(bx) + ' ' + f1(inY + (inX - bx) * .3) + ' L' + f1(inX) + ' ' + f1(inY);
+      raysSvg.appendChild(mk('path', { 'class': 'abt-beam', d: beam, stroke: 'url(#abtBeamG)', pathLength: 1 }));
+      raysSvg.appendChild(mk('path', { 'class': 'abt-pulse', d: beam, pathLength: 1 }));
+
+      rayEls.forEach(function (ray, i) {
+        var dot = ray.querySelector('.abt-dot'), dp = at(dot);
+        var ex = dp.x + dot.offsetWidth / 2, ey = dp.y + dot.offsetHeight / 2;
+        var c = ray.style.getPropertyValue('--c').trim();
+        var grp = mk('g', { 'class': 'abt-g', 'data-i': i, style: '--i:' + i });
+        var fg = mk('linearGradient', { id: 'abtFan' + i, gradientUnits: 'userSpaceOnUse',
+          x1: f1(outX), y1: f1(outY), x2: f1(ex), y2: f1(ey) });
+        fg.appendChild(mk('stop', { offset: 0, 'stop-color': c, 'stop-opacity': 0 }));
+        fg.appendChild(mk('stop', { offset: 1, 'stop-color': c, 'stop-opacity': .2 }));
+        defs.appendChild(fg);
+        grp.appendChild(mk('path', { 'class': 'abt-fan', fill: 'url(#abtFan' + i + ')',
+          d: 'M' + f1(outX) + ' ' + f1(outY) + ' L' + f1(ex) + ' ' + f1(ey - 5) + ' L' + f1(ex) + ' ' + f1(ey + 5) + ' Z' }));
+        var line = 'M' + f1(outX) + ' ' + f1(outY) + ' L' + f1(ex) + ' ' + f1(ey);
+        grp.appendChild(mk('path', { 'class': 'abt-line', d: line, stroke: c, pathLength: 1 }));
+        grp.appendChild(mk('path', { 'class': 'abt-pulse', d: line, pathLength: 1 }));
+        raysSvg.appendChild(grp);
+      });
+    };
+
+    drawRays();
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(drawRays);
+    if ('ResizeObserver' in window) new ResizeObserver(drawRays).observe(prismBox);
+    else window.addEventListener('resize', drawRays);
+  }
+
+  /* The address, split into letters for the hop. The link keeps the
+     whole address as its accessible name; the letters are presentation.
+     Anyone who asked for less motion keeps the plain text. */
+  var mail = document.querySelector('.cta-mail');
+  if (mail && !calm) {
+    var addr = mail.textContent.trim();
+    mail.setAttribute('aria-label', addr);
+    mail.textContent = '';
+    for (var k = 0; k < addr.length; k++) {
+      var ch = document.createElement('span');
+      ch.textContent = addr.charAt(k);
+      ch.setAttribute('aria-hidden', 'true');
+      /* ~46ms a key, give or take — uneven on purpose */
+      ch.style.setProperty('--k', (k * 46 + ((k * 37) % 5) * 7) + 'ms');
+      mail.appendChild(ch);
+    }
+  }
+
+  /* copy the address */
+  var copy = document.getElementById('copyMail');
+  if (copy && navigator.clipboard) {
+    var idle = copy.textContent, back;
+    copy.addEventListener('click', function () {
+      navigator.clipboard.writeText('info@prismadev.net').then(function () {
+        copy.textContent = 'Copiato';
+        copy.classList.add('done');
+        clearTimeout(back);
+        back = setTimeout(function () {
+          copy.textContent = idle;
+          copy.classList.remove('done');
+        }, 1800);
+      });
+    });
+  } else if (copy) {
+    copy.hidden = true;   /* no clipboard, no button pretending to be one */
+  }
+})();
+</script>
+</body>
+</html>

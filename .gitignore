@@ -1,0 +1,10 @@
+.DS_Store
+node_modules/
+
+# Local dev-server config — contains machine-specific absolute paths
+.claude/
+
+# Blender build artifacts — all regenerable from blender/*.py
+blender/out/
+blender/render.log
+*.blend1
