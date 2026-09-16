@@ -7,14 +7,25 @@
 <meta name="description" content="Siti web disegnati e costruiti da una persona sola, da remoto in tutta Europa. Pronti in 1–2 settimane, a prezzo fisso. Disponibile ora.">
 <meta name="theme-color" content="#0D0812">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M16 4 L28 27 H4 Z' fill='none' stroke='%232F0366' stroke-width='2.5' stroke-linejoin='round'/%3E%3Cpath d='M0 17 H12' stroke='%232F0366' stroke-width='2.5'/%3E%3Cpath d='M20 18 L32 22' stroke='%23AE66FF' stroke-width='2.5'/%3E%3C/svg%3E">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<!-- Fonts don't block the first paint: the stylesheet is fetched early and
-     switched on when it arrives. Until then text uses the fallback stack. -->
-<link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@600;700;800&family=Manrope:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@600;700;800&family=Manrope:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" media="print" onload="this.media='all'">
-<noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@600;700;800&family=Manrope:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap"></noscript>
 <style>
+/* Fonts are served from this site, cut down to the characters the page
+   uses (Latin, Italian accents, typographic punctuation) and to the weights
+   it uses. Google's full files were 105 KB across two extra connections;
+   these are 38 KB from the same one. swap: text shows at once in the
+   fallback and changes over when these arrive. */
+@font-face{
+  font-family:"Unbounded"; font-weight:600 800; font-style:normal; font-display:swap;
+  src:url("fonts/unbounded.v1.woff2") format("woff2");
+}
+@font-face{
+  font-family:"Manrope"; font-weight:400 600; font-style:normal; font-display:swap;
+  src:url("fonts/manrope.v1.woff2") format("woff2");
+}
+@font-face{
+  font-family:"JetBrains Mono"; font-weight:500; font-style:normal; font-display:swap;
+  src:url("fonts/jetbrains-mono.v1.woff2") format("woff2");
+}
+
 /* ============================================================
    prismadev — prototype: converge
 
@@ -970,7 +981,7 @@ html:not(.js) .hero-badge, .calm .hero-badge{ opacity:1; transform:translate(-50
     <a href="#chi-siamo">Chi siamo</a>
     <a href="#contatti">Contatti</a>
   </nav>
-  <a class="gnav-cta" href="mailto:info@prismadev.net?subject=Nuovo%20progetto">Inizia un progetto</a>
+  <!--email_off--><a class="gnav-cta" href="mailto:info@prismadev.net?subject=Nuovo%20progetto">Inizia un progetto</a><!--/email_off-->
 </header>
 
 <main class="page">
@@ -1211,9 +1222,9 @@ html:not(.js) .hero-badge, .calm .hero-badge{ opacity:1; transform:translate(-50
 
       <div class="cta-panel reveal" style="--d:120ms">
         <p class="cta-status"><span class="cta-status-dot" aria-hidden="true"></span>Disponibile ora</p>
-        <div><a class="cta-mail" href="mailto:info@prismadev.net?subject=Nuovo%20progetto">info@prismadev.net</a></div>
+        <div><!--email_off--><a class="cta-mail" href="mailto:info@prismadev.net?subject=Nuovo%20progetto">info@prismadev.net</a><!--/email_off--></div>
         <div class="cta-actions">
-          <a class="cta-send" href="mailto:info@prismadev.net?subject=Nuovo%20progetto">Scrivici una email <span aria-hidden="true">→</span></a>
+          <!--email_off--><a class="cta-send" href="mailto:info@prismadev.net?subject=Nuovo%20progetto">Scrivici una email <span aria-hidden="true">→</span></a><!--/email_off-->
           <button class="cta-copy" id="copyMail" type="button">Copia indirizzo</button>
         </div>
       </div>
