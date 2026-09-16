@@ -1,0 +1,27 @@
+# prismadev
+
+> Studio indipendente che disegna e costruisce siti web. Un solo referente dall'inizio alla fine, da remoto in tutta Europa. Progetti pronti in 1–2 settimane, a prezzo fisso. Disponibile ora.
+
+Il sito è in italiano. Lavoriamo in italiano e in inglese.
+
+## Servizi
+
+- [Come appare](https://prismadev.net/#servizi): disegno e costruzione del sito fatti dalla stessa persona; testi leggibili e tutto che funziona uguale su telefono e computer.
+- [Come si muove](https://prismadev.net/#servizi): animazioni poche e discrete, che aiutano a orientarsi e si spengono per chi preferisce meno movimento.
+- [Cosa c’è dietro](https://prismadev.net/#servizi): gestione dei dati, accessi con password, pagamenti e un pannello per cambiare testi e foto in autonomia.
+- [Quanto va veloce](https://prismadev.net/#servizi): velocità misurata con i voti di Google, provata su telefoni e connessioni reali.
+
+## Tipi di progetto
+
+- [Siti prodotto](https://prismadev.net/#lavori): il sito che spiega cosa fa un'azienda e regge il giorno del lancio; i testi si aggiornano senza sviluppatore.
+- [Programmi da usare ogni giorno](https://prismadev.net/#lavori): strumenti di lavoro che restano chiari anche con molti dati.
+- [Siti da rimettere in piedi](https://prismadev.net/#lavori): siti bloccati a metà o con problemi; si analizza cosa si salva e cosa conviene rifare.
+
+## Come lavoriamo
+
+- [Processo](https://prismadev.net/#processo): una chiamata iniziale; preventivo a prezzo fisso entro due giorni; sviluppo in 1–2 settimane con anteprime durante il lavoro; messa online con le istruzioni per gestire il sito in autonomia.
+- [Chi siamo](https://prismadev.net/#chi-siamo): chi disegna il sito è anche chi lo costruisce; lavoriamo con piccole aziende, a progetto o in modo continuativo.
+
+## Contatti
+
+- [Email](mailto:info@prismadev.net): indicare cosa si vuole costruire, per quando serve e cosa sta bloccando. Risposta di solito entro due giorni.

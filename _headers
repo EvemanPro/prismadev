@@ -10,3 +10,7 @@
 # ships under a new name and these can be cached for a year.
 /fonts/*
   Cache-Control: public, max-age=31536000, immutable
+
+# llms.txt is Markdown for AI agents; say so, and say it is UTF-8 (accents)
+/llms.txt
+  Content-Type: text/markdown; charset=utf-8
